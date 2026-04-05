@@ -522,19 +522,7 @@
     font-size: 13px;
     color: var(--muted);
   }
- 
-.install-btn {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  padding: 12px 18px;
-  background: black;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
-}
+
   /* ── Reset btn ── */
   .reset-btn {
     padding: 8px 20px;
@@ -573,9 +561,7 @@
     </div>
     PronounceCheck
   </div>
- <span><button id="installBtn" class="install-btn">
-  ⬇ Install App
-</button></span>
+ 
 </header>
 
 <main id="main-grid">
@@ -1136,34 +1122,7 @@ if (navigator.permissions) {
 }
 </script>
  <script>
-let deferredPrompt;
-const installBtn = document.getElementById('installBtn');
 
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault(); // stop default mini-infobar
-  deferredPrompt = e;
-
-  installBtn.style.display = 'block'; // show button
-});
-
-installBtn.addEventListener('click', async () => {
-  if (!deferredPrompt) return;
-
-  deferredPrompt.prompt(); // show install popup
-
-  const { outcome } = await deferredPrompt.userChoice;
-  console.log(`User response: ${outcome}`);
-
-  deferredPrompt = null;
-  installBtn.style.display = 'none';
-});
-
-window.addEventListener('appinstalled', () => {
-  console.log('PWA installed');
-  installBtn.style.display = 'none';
-});
-
-  
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/Pronounce/service-worker.js')
     .then(() => console.log("Service Worker Registered"));
