@@ -639,12 +639,20 @@
 let tolerance = 0.75;
 let recognition = null;
 let isRecording = false;
+let isStarting = false;       // guard against double-start
 let transcript = '';
-let waveInterval = null;
+let interimTranscript = '';
+let waveRaf = null;
 let bars = [];
 const BARS = 28;
 
-// ── Init waveform ──
+// ── AudioContext waveform ──
+let audioCtx = null;
+let analyser = null;
+let micStream = null;
+let freqData = null;
+
+// ── Init waveform bars ──
 (function initWave() {
   const wf = document.getElementById('waveform');
   for (let i = 0; i < BARS; i++) {
@@ -653,21 +661,63 @@ const BARS = 28;
     wf.appendChild(b);
     bars.push(b);
   }
+  idleWave();
 })();
 
-function animateBarsIdle() {
-  bars.forEach((b, i) => {
-    b.style.height = (4 + Math.sin(Date.now() / 400 + i * 0.5) * 2) + 'px';
-    b.classList.remove('active');
-  });
+function idleWave() {
+  cancelAnimationFrame(waveRaf);
+  let t = 0;
+  function frame() {
+    t += 0.03;
+    bars.forEach((b, i) => {
+      b.style.height = (4 + Math.sin(t + i * 0.45) * 2.5) + 'px';
+      b.classList.remove('active');
+    });
+    waveRaf = requestAnimationFrame(frame);
+  }
+  waveRaf = requestAnimationFrame(frame);
 }
 
-function animateBarsActive() {
-  bars.forEach((b, i) => {
-    const h = 4 + Math.random() * 28;
-    b.style.height = h + 'px';
-    b.classList.add('active');
-  });
+function liveWave() {
+  cancelAnimationFrame(waveRaf);
+  function frame() {
+    if (analyser && freqData) {
+      analyser.getByteFrequencyData(freqData);
+      const step = Math.floor(freqData.length / BARS);
+      bars.forEach((b, i) => {
+        const v = freqData[i * step] / 255;
+        b.style.height = (4 + v * 30) + 'px';
+        b.classList.add('active');
+      });
+    } else {
+      // fallback random if analyser not ready
+      bars.forEach(b => {
+        b.style.height = (4 + Math.random() * 24) + 'px';
+        b.classList.add('active');
+      });
+    }
+    waveRaf = requestAnimationFrame(frame);
+  }
+  waveRaf = requestAnimationFrame(frame);
+}
+
+async function startAudioVisualizer(stream) {
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 128;
+    freqData = new Uint8Array(analyser.frequencyBinCount);
+    const source = audioCtx.createMediaStreamSource(stream);
+    source.connect(analyser);
+  } catch (e) {
+    analyser = null; freqData = null;
+  }
+}
+
+function stopAudioVisualizer() {
+  try { if (audioCtx) { audioCtx.close(); } } catch(e) {}
+  audioCtx = null; analyser = null; freqData = null;
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
 }
 
 // ── Word count ──
@@ -688,97 +738,192 @@ function setTolerance(btn) {
   tolerance = parseFloat(btn.dataset.tol);
 }
 
-// ── Speech Recognition ──
+// ── Helpers ──
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-function toggleRecord() {
-  if (!SpeechRecognition) {
-    document.getElementById('transcript-box').textContent = '⚠ Your browser does not support the Web Speech API. Try Chrome or Edge.';
-    return;
-  }
-  if (!targetInput.value.trim()) {
-    targetInput.style.borderColor = 'var(--red)';
-    setTimeout(() => targetInput.style.borderColor = '', 1500);
-    return;
-  }
-  isRecording ? stopRecord() : startRecord();
+function setStatus(msg, active) {
+  const el = document.getElementById('mic-status');
+  el.textContent = msg;
+  el.classList.toggle('active', !!active);
 }
 
-function startRecord() {
+function setTranscript(text, hasText) {
+  const el = document.getElementById('transcript-box');
+  el.textContent = text;
+  el.classList.toggle('has-text', !!hasText);
+}
+
+function errorMsg(code) {
+  const map = {
+    'not-allowed':        '🚫 Microphone access denied. Click the 🔒 icon in your address bar and allow microphone.',
+    'permission-denied':  '🚫 Microphone permission denied. Please allow access in browser settings.',
+    'audio-capture':      '🎙️ No microphone found. Please connect a microphone and try again.',
+    'service-not-allowed':'⚠️ Speech service not allowed. Make sure the page is served over HTTPS or localhost.',
+    'network':            '🌐 Network error. Check your internet connection — Chrome needs it for speech recognition.',
+    'aborted':            null,   // user-initiated, no message needed
+    'no-speech':          null,   // handled silently with restart
+  };
+  return map[code] !== undefined ? map[code] : `⚠️ Error: ${code}. Please try again.`;
+}
+
+// ── Main toggle ──
+async function toggleRecord() {
+  if (!SpeechRecognition) {
+    setTranscript('⚠️ Web Speech API not supported. Please use Google Chrome or Microsoft Edge.', false);
+    return;
+  }
+  if (isStarting) return;   // debounce rapid clicks
+
+  if (isRecording) {
+    stopRecord();
+  } else {
+    if (!targetInput.value.trim()) {
+      targetInput.style.borderColor = 'var(--red)';
+      setTimeout(() => targetInput.style.borderColor = '', 1500);
+      setStatus('⚠ Enter a phrase first', false);
+      setTimeout(() => setStatus('Click to start recording', false), 2000);
+      return;
+    }
+    await startRecord();
+  }
+}
+
+async function startRecord() {
+  isStarting = true;
+
+  // ── Step 1: Explicit mic permission ──
+  setStatus('Requesting microphone…', false);
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    isStarting = false;
+    const msg =
+      err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
+        ? '🚫 Microphone access denied. Click the 🔒 icon in the address bar and allow microphone access, then try again.'
+        : err.name === 'NotFoundError'
+        ? '🎙️ No microphone detected. Please connect one and try again.'
+        : `⚠️ Could not access microphone: ${err.message}`;
+    setTranscript(msg, false);
+    setStatus('Click to start recording', false);
+    return;
+  }
+
+  // ── Step 2: AudioContext visualizer ──
+  await startAudioVisualizer(micStream);
+
+  // ── Step 3: Setup state ──
   isRecording = true;
+  isStarting = false;
   transcript = '';
-  document.getElementById('transcript-box').textContent = 'Listening…';
-  document.getElementById('transcript-box').classList.remove('has-text');
+  interimTranscript = '';
+
+  document.getElementById('mic-btn').classList.add('recording');
   document.getElementById('analyze-btn').disabled = true;
+  setTranscript('Listening… speak now', false);
+  setStatus('Recording — click to stop', true);
+  liveWave();
 
-  const btn = document.getElementById('mic-btn');
-  btn.classList.add('recording');
-  document.getElementById('mic-status').textContent = 'Recording… click to stop';
-  document.getElementById('mic-status').classList.add('active');
+  // ── Step 4: Speech recognition ──
+  createAndStartRecognition();
+}
 
-  clearInterval(waveInterval);
-  waveInterval = setInterval(animateBarsActive, 80);
+function createAndStartRecognition() {
+  if (!isRecording) return;
+
+  // Always create a fresh instance — reusing after .stop() is unreliable
+  if (recognition) {
+    recognition.onresult = null;
+    recognition.onerror  = null;
+    recognition.onend    = null;
+    try { recognition.abort(); } catch(e) {}
+  }
 
   recognition = new SpeechRecognition();
   recognition.lang = 'en-US';
   recognition.interimResults = true;
   recognition.maxAlternatives = 1;
-  recognition.continuous = true;
+  recognition.continuous = false;   // false = more stable; we restart manually on end
+
+  recognition.onstart = () => {
+    // Recognition successfully started
+  };
 
   recognition.onresult = (e) => {
     let interim = '';
-    let final = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const t = e.results[i][0].transcript;
-      if (e.results[i].isFinal) final += t + ' ';
-      else interim += t;
+      if (e.results[i].isFinal) {
+        transcript += t + ' ';
+      } else {
+        interim += t;
+      }
     }
-    transcript += final;
-    document.getElementById('transcript-box').textContent = (transcript + interim).trim() || 'Listening…';
-    document.getElementById('transcript-box').classList.toggle('has-text', !!(transcript + interim).trim());
+    interimTranscript = interim;
+    const display = (transcript + interim).trim();
+    setTranscript(display || 'Listening…', !!display);
   };
 
   recognition.onerror = (e) => {
-    if (e.error === 'not-allowed') {
-      document.getElementById('transcript-box').textContent = '⚠ Microphone access denied. Please allow mic access.';
+    if (e.error === 'no-speech') {
+      // Silence — just let onend restart it naturally
+      return;
     }
-    stopRecord();
+    if (e.error === 'aborted') {
+      // We aborted it ourselves during stopRecord()
+      return;
+    }
+    const msg = errorMsg(e.error);
+    if (msg) setTranscript(msg, false);
+    stopRecord(true);  // stop without overwriting error message
   };
 
   recognition.onend = () => {
+    // Auto-restart if still in recording mode (handles Chrome's natural end)
     if (isRecording) {
-      try { recognition.start(); } catch(e) {}
+      setTimeout(createAndStartRecognition, 150);
     }
   };
 
-  recognition.start();
+  try {
+    recognition.start();
+  } catch (e) {
+    // start() can throw if called too quickly; retry once
+    setTimeout(() => {
+      if (isRecording) {
+        try { recognition.start(); } catch(e2) { stopRecord(); }
+      }
+    }, 300);
+  }
 }
 
-function stopRecord() {
+function stopRecord(keepMessage = false) {
   isRecording = false;
-  if (recognition) { try { recognition.stop(); } catch(e) {} }
 
-  const btn = document.getElementById('mic-btn');
-  btn.classList.remove('recording');
-  document.getElementById('mic-status').textContent = 'Click to start recording';
-  document.getElementById('mic-status').classList.remove('active');
+  // Kill recognition
+  if (recognition) {
+    recognition.onresult = null;
+    recognition.onerror  = null;
+    recognition.onend    = null;
+    try { recognition.abort(); } catch(e) {}
+    recognition = null;
+  }
 
-  clearInterval(waveInterval);
-  waveInterval = setInterval(() => {
-    bars.forEach((b, i) => {
-      b.style.height = (4 + Math.sin(Date.now() / 500 + i * 0.6) * 2) + 'px';
-      b.classList.remove('active');
-    });
-  }, 80);
+  // Stop mic stream & visualizer
+  stopAudioVisualizer();
 
-  const t = transcript.trim();
-  if (t) {
-    document.getElementById('transcript-box').textContent = t;
-    document.getElementById('transcript-box').classList.add('has-text');
-    document.getElementById('analyze-btn').disabled = false;
-  } else {
-    document.getElementById('transcript-box').textContent = 'Nothing detected. Try again.';
-    document.getElementById('analyze-btn').disabled = true;
+  document.getElementById('mic-btn').classList.remove('recording');
+  setStatus('Click to start recording', false);
+  idleWave();
+
+  if (!keepMessage) {
+    const t = transcript.trim();
+    if (t) {
+      setTranscript(t, true);
+      document.getElementById('analyze-btn').disabled = false;
+    } else {
+      setTranscript('Nothing detected. Try again.', false);
+      document.getElementById('analyze-btn').disabled = true;
+    }
   }
 }
 
@@ -1006,14 +1151,6 @@ function resetAll() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// Start idle waveform animation
-waveInterval = setInterval(() => {
-  bars.forEach((b, i) => {
-    b.style.height = (4 + Math.sin(Date.now() / 500 + i * 0.6) * 2) + 'px';
-    b.classList.remove('active');
-  });
-}, 80);
-
 // Check browser support on load
 if (!SpeechRecognition) {
   document.getElementById('record-section').innerHTML = `
@@ -1022,6 +1159,17 @@ if (!SpeechRecognition) {
       Please use <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong> for this feature.
     </div>
   `;
+}
+
+// Passive mic permission check (no prompt)
+if (navigator.permissions) {
+  navigator.permissions.query({ name: 'microphone' }).then(result => {
+    if (result.state === 'denied') setStatus('⚠ Mic blocked — allow in browser settings', false);
+    result.onchange = () => {
+      if (result.state === 'denied') setStatus('⚠ Mic blocked — allow in browser settings', false);
+      else setStatus('Click to start recording', false);
+    };
+  }).catch(() => {});
 }
 </script>
 </body>
