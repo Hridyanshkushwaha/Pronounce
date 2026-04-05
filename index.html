@@ -805,7 +805,12 @@ function launchRecognition() {
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const chunk = e.results[i][0].transcript;
       if (e.results[i].isFinal) {
-        transcript += chunk + ' ';
+        const trimmed = chunk.trim().toLowerCase();
+        const tail    = transcript.trimEnd().toLowerCase();
+        // Skip if transcript already ends with this chunk (replay from buffer on restart)
+        if (trimmed && !tail.endsWith(trimmed)) {
+          transcript += chunk.trim() + ' ';
+        }
       } else {
         interim += chunk;
       }
