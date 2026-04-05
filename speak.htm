@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pronunciation Detector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f5f4f0;
+    --surface: #ffffff;
+    --border: #e2e0d8;
+    --text: #1a1917;
+    --muted: #8a8880;
+    --accent: #1a1917;
+    --green: #22c55e;
+    --red: #ef4444;
+    --amber: #f59e0b;
+    --pulse: #ef4444;
+    --mono: 'DM Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 40px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .logo-icon {
+    width: 28px; height: 28px;
+    background: var(--text);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .logo-icon svg { fill: var(--bg); }
+
+  .badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  /* ── Main Layout ── */
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    max-width: 1100px;
+    margin: 40px auto;
+    width: 100%;
+    padding: 0 40px;
+  }
+
+  /* ── Panel ── */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .panel:first-child { border-radius: 16px 0 0 16px; border-right: none; }
+  .panel:last-child  { border-radius: 0 16px 16px 0; }
+
+  .panel-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .panel-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .panel-step {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 3px 10px;
+  }
+
+  .panel-body { padding: 24px; }
+
+  /* ── Preset Phrases ── */
+  .preset-label {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+
+  .presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 18px;
+  }
+
+  .preset-btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 5px 12px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .preset-btn:hover {
+    background: var(--text);
+    color: var(--bg);
+    border-color: var(--text);
+  }
+
+  /* ── Textarea ── */
+  textarea {
+    width: 100%;
+    min-height: 110px;
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.7;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    resize: none;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  textarea:focus { border-color: var(--text); }
+  textarea::placeholder { color: var(--muted); }
+
+  /* ── Word count ── */
+  .word-count {
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* ── Difficulty ── */
+  .difficulty-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .diff-btn {
+    flex: 1;
+    padding: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+
+  .diff-btn.active {
+    background: var(--text);
+    color: var(--bg);
+    border-color: var(--text);
+  }
+
+  /* ── Record section ── */
+  .record-section { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+
+  .mic-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 28px 0;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    background: var(--bg);
+  }
+
+  .mic-btn {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    border: 2px solid var(--text);
+    background: var(--surface);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+    position: relative;
+    outline: none;
+  }
+
+  .mic-btn:hover { background: var(--text); }
+  .mic-btn:hover svg { fill: var(--bg); }
+
+  .mic-btn svg { fill: var(--text); transition: fill 0.2s; }
+
+  .mic-btn.recording {
+    background: var(--red);
+    border-color: var(--red);
+  }
+  .mic-btn.recording svg { fill: #fff; }
+
+  .mic-btn.recording::before {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 2px solid var(--red);
+    opacity: 0.4;
+    animation: ripple 1.2s infinite;
+  }
+  .mic-btn.recording::after {
+    content: '';
+    position: absolute;
+    inset: -16px;
+    border-radius: 50%;
+    border: 2px solid var(--red);
+    opacity: 0.15;
+    animation: ripple 1.2s 0.4s infinite;
+  }
+
+  @keyframes ripple {
+    0% { transform: scale(0.9); opacity: 0.4; }
+    100% { transform: scale(1.2); opacity: 0; }
+  }
+
+  .mic-status {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  .mic-status.active { color: var(--red); }
+
+  /* ── Waveform ── */
+  #waveform {
+    width: 100%;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 0 10px;
+  }
+
+  .bar {
+    width: 3px;
+    border-radius: 2px;
+    background: var(--muted);
+    height: 4px;
+    transition: height 0.1s ease;
+  }
+
+  .bar.active { background: var(--red); }
+
+  /* ── Transcript box ── */
+  .transcript-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    min-height: 60px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--muted);
+  }
+
+  .transcript-box.has-text { color: var(--text); }
+
+  /* ── Analyze button ── */
+  .analyze-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--text);
+    color: var(--bg);
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .analyze-btn:hover { opacity: 0.85; }
+  .analyze-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* ── Results Panel ── */
+  .results-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    margin-top: 24px;
+    overflow: hidden;
+    display: none;
+    max-width: 1100px;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 0 40px;
+  }
+
+  .results-wrap.visible { display: block; }
+
+  /* we'll render it inside main below panels */
+
+  /* ── Score card ── */
+  .score-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+
+  .score-card {
+    background: var(--surface);
+    padding: 20px;
+    text-align: center;
+  }
+
+  .score-num {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+
+  .score-lbl {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  /* ── Word comparison ── */
+  .comparison-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  .word-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+
+  .word-chip {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-family: var(--mono);
+  }
+
+  .word-chip .target-w {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .word-chip .spoken-w {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .word-chip.correct  { background: #f0fdf4; border-color: #86efac; }
+  .word-chip.wrong    { background: #fef2f2; border-color: #fca5a5; }
+  .word-chip.skipped  { background: #fffbeb; border-color: #fcd34d; }
+  .word-chip.extra    { background: #fef2f2; border-color: #fca5a5; opacity: 0.7; }
+
+  .word-chip .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    margin-top: 2px;
+  }
+  .correct .status-dot  { background: var(--green); }
+  .wrong .status-dot    { background: var(--red); }
+  .skipped .status-dot  { background: var(--amber); }
+  .extra .status-dot    { background: var(--red); }
+
+  /* ── Mistake detail ── */
+  .mistake-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
+
+  .mistake-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 16px;
+    background: var(--bg);
+    border-radius: 10px;
+    border-left: 3px solid var(--red);
+  }
+
+  .mistake-item.skipped { border-left-color: var(--amber); }
+
+  .mistake-icon {
+    font-size: 18px;
+    margin-top: 1px;
+    flex-shrink: 0;
+  }
+
+  .mistake-info { flex: 1; }
+  .mistake-words {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+
+  .m-target { color: var(--text); font-weight: 500; }
+  .m-arrow  { color: var(--muted); }
+  .m-spoken { color: var(--red); }
+  .skipped .m-spoken { color: var(--amber); }
+
+  .mistake-tip {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .legend-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+
+  /* ── No support ── */
+  .no-support {
+    text-align: center;
+    padding: 40px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  /* ── Reset btn ── */
+  .reset-btn {
+    padding: 8px 20px;
+    font-family: var(--mono);
+    font-size: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .reset-btn:hover { border-color: var(--text); color: var(--text); }
+
+  /* ── Responsive ── */
+  @media (max-width: 700px) {
+    main { grid-template-columns: 1fr; padding: 0 16px; }
+    .panel:first-child { border-radius: 16px 16px 0 0; border-right: 1px solid var(--border); border-bottom: none; }
+    .panel:last-child  { border-radius: 0 0 16px 16px; }
+    .score-grid { grid-template-columns: 1fr 1fr; }
+    header { padding: 16px 20px; }
+  }
+
+  /* ── Idle animation ── */
+  @keyframes idle-bounce {
+    0%, 100% { height: 4px; }
+    50% { height: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zm6 9a1 1 0 0 1 2 0 8 8 0 0 1-7 7.94V21h2a1 1 0 0 1 0 2H9a1 1 0 0 1 0-2h2v-2.06A8 8 0 0 1 4 11a1 1 0 0 1 2 0 6 6 0 0 0 12 0z"/></svg>
+    </div>
+    PronounceCheck
+  </div>
+  <span class="badge">WEB SPEECH API</span>
+</header>
+
+<main id="main-grid">
+  <!-- LEFT: Target Phrase -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-label">Target Phrase</span>
+      <span class="panel-step">Step 1</span>
+    </div>
+    <div class="panel-body">
+      <div class="preset-label">Quick presets</div>
+      <div class="presets">
+        <button class="preset-btn" onclick="setPreset('The quick brown fox jumps over the lazy dog')">Pangram</button>
+        <button class="preset-btn" onclick="setPreset('She sells seashells by the seashore')">Tongue twister</button>
+        <button class="preset-btn" onclick="setPreset('How much wood would a woodchuck chuck')">Woodchuck</button>
+        <button class="preset-btn" onclick="setPreset('Peter Piper picked a peck of pickled peppers')">Peter Piper</button>
+        <button class="preset-btn" onclick="setPreset('Unique New York, you know you need unique New York')">Unique NY</button>
+        <button class="preset-btn" onclick="setPreset('Red leather yellow leather')">Red leather</button>
+      </div>
+
+      <textarea id="target-input" placeholder="Type or paste a phrase to practice..." rows="4"></textarea>
+      <div class="word-count"><span id="wc">0</span> words</div>
+
+      <div style="margin-top:16px;">
+        <div class="preset-label" style="margin-bottom:8px;">Tolerance</div>
+        <div class="difficulty-row">
+          <button class="diff-btn active" data-tol="0.75" onclick="setTolerance(this)">Strict</button>
+          <button class="diff-btn" data-tol="0.60" onclick="setTolerance(this)">Normal</button>
+          <button class="diff-btn" data-tol="0.45" onclick="setTolerance(this)">Lenient</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Record -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-label">Your Speech</span>
+      <span class="panel-step">Step 2</span>
+    </div>
+
+    <div class="record-section" id="record-section">
+      <div class="mic-wrapper">
+        <button class="mic-btn" id="mic-btn" onclick="toggleRecord()" title="Start recording">
+          <svg id="mic-icon" width="24" height="24" viewBox="0 0 24 24">
+            <path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zm6 9a1 1 0 0 1 2 0 8 8 0 0 1-7 7.94V21h2a1 1 0 0 1 0 2H9a1 1 0 0 1 0-2h2v-2.06A8 8 0 0 1 4 11a1 1 0 0 1 2 0 6 6 0 0 0 12 0z"/>
+          </svg>
+        </button>
+        <div class="mic-status" id="mic-status">Click to start recording</div>
+        <div id="waveform"></div>
+      </div>
+
+      <div>
+        <div class="preset-label" style="margin-bottom:8px;">What you said</div>
+        <div class="transcript-box" id="transcript-box">Your spoken words will appear here…</div>
+      </div>
+
+      <button class="analyze-btn" id="analyze-btn" disabled onclick="analyzeNow()">Analyze Pronunciation →</button>
+    </div>
+  </div>
+</main>
+
+<!-- Results section (below main grid) -->
+<div id="results-outer" style="max-width:1100px;margin:0 auto 40px;padding:0 40px;display:none;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;">
+    <div class="panel-header">
+      <span class="panel-label">Analysis Results</span>
+      <button class="reset-btn" onclick="resetAll()">↩ Try again</button>
+    </div>
+    <div style="padding:24px;" id="results-body"></div>
+  </div>
+</div>
+
+<script>
+// ── State ──
+let tolerance = 0.75;
+let recognition = null;
+let isRecording = false;
+let transcript = '';
+let waveInterval = null;
+let bars = [];
+const BARS = 28;
+
+// ── Init waveform ──
+(function initWave() {
+  const wf = document.getElementById('waveform');
+  for (let i = 0; i < BARS; i++) {
+    const b = document.createElement('div');
+    b.className = 'bar';
+    wf.appendChild(b);
+    bars.push(b);
+  }
+})();
+
+function animateBarsIdle() {
+  bars.forEach((b, i) => {
+    b.style.height = (4 + Math.sin(Date.now() / 400 + i * 0.5) * 2) + 'px';
+    b.classList.remove('active');
+  });
+}
+
+function animateBarsActive() {
+  bars.forEach((b, i) => {
+    const h = 4 + Math.random() * 28;
+    b.style.height = h + 'px';
+    b.classList.add('active');
+  });
+}
+
+// ── Word count ──
+const targetInput = document.getElementById('target-input');
+targetInput.addEventListener('input', () => {
+  const words = targetInput.value.trim().split(/\s+/).filter(Boolean).length;
+  document.getElementById('wc').textContent = words;
+});
+
+function setPreset(text) {
+  targetInput.value = text;
+  targetInput.dispatchEvent(new Event('input'));
+}
+
+function setTolerance(btn) {
+  document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  tolerance = parseFloat(btn.dataset.tol);
+}
+
+// ── Speech Recognition ──
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+function toggleRecord() {
+  if (!SpeechRecognition) {
+    document.getElementById('transcript-box').textContent = '⚠ Your browser does not support the Web Speech API. Try Chrome or Edge.';
+    return;
+  }
+  if (!targetInput.value.trim()) {
+    targetInput.style.borderColor = 'var(--red)';
+    setTimeout(() => targetInput.style.borderColor = '', 1500);
+    return;
+  }
+  isRecording ? stopRecord() : startRecord();
+}
+
+function startRecord() {
+  isRecording = true;
+  transcript = '';
+  document.getElementById('transcript-box').textContent = 'Listening…';
+  document.getElementById('transcript-box').classList.remove('has-text');
+  document.getElementById('analyze-btn').disabled = true;
+
+  const btn = document.getElementById('mic-btn');
+  btn.classList.add('recording');
+  document.getElementById('mic-status').textContent = 'Recording… click to stop';
+  document.getElementById('mic-status').classList.add('active');
+
+  clearInterval(waveInterval);
+  waveInterval = setInterval(animateBarsActive, 80);
+
+  recognition = new SpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 1;
+  recognition.continuous = true;
+
+  recognition.onresult = (e) => {
+    let interim = '';
+    let final = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) final += t + ' ';
+      else interim += t;
+    }
+    transcript += final;
+    document.getElementById('transcript-box').textContent = (transcript + interim).trim() || 'Listening…';
+    document.getElementById('transcript-box').classList.toggle('has-text', !!(transcript + interim).trim());
+  };
+
+  recognition.onerror = (e) => {
+    if (e.error === 'not-allowed') {
+      document.getElementById('transcript-box').textContent = '⚠ Microphone access denied. Please allow mic access.';
+    }
+    stopRecord();
+  };
+
+  recognition.onend = () => {
+    if (isRecording) {
+      try { recognition.start(); } catch(e) {}
+    }
+  };
+
+  recognition.start();
+}
+
+function stopRecord() {
+  isRecording = false;
+  if (recognition) { try { recognition.stop(); } catch(e) {} }
+
+  const btn = document.getElementById('mic-btn');
+  btn.classList.remove('recording');
+  document.getElementById('mic-status').textContent = 'Click to start recording';
+  document.getElementById('mic-status').classList.remove('active');
+
+  clearInterval(waveInterval);
+  waveInterval = setInterval(() => {
+    bars.forEach((b, i) => {
+      b.style.height = (4 + Math.sin(Date.now() / 500 + i * 0.6) * 2) + 'px';
+      b.classList.remove('active');
+    });
+  }, 80);
+
+  const t = transcript.trim();
+  if (t) {
+    document.getElementById('transcript-box').textContent = t;
+    document.getElementById('transcript-box').classList.add('has-text');
+    document.getElementById('analyze-btn').disabled = false;
+  } else {
+    document.getElementById('transcript-box').textContent = 'Nothing detected. Try again.';
+    document.getElementById('analyze-btn').disabled = true;
+  }
+}
+
+// ── Analysis ──
+// Levenshtein distance
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({length: m+1}, (_, i) => Array.from({length: n+1}, (_, j) => j === 0 ? i : 0));
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j-1], dp[i-1][j], dp[i][j-1]);
+  return dp[m][n];
+}
+
+function similarity(a, b) {
+  a = a.toLowerCase().replace(/[^a-z]/g, '');
+  b = b.toLowerCase().replace(/[^a-z]/g, '');
+  if (!a && !b) return 1;
+  if (!a || !b) return 0;
+  const maxLen = Math.max(a.length, b.length);
+  return 1 - levenshtein(a, b) / maxLen;
+}
+
+function tokenize(str) {
+  return str.trim().toLowerCase().replace(/[.,!?;:'"]/g, '').split(/\s+/).filter(Boolean);
+}
+
+// Simple phonetic tips
+function phoneticTip(target, spoken) {
+  const t = target.toLowerCase(), s = spoken.toLowerCase();
+  if (!s || s === '[skipped]') return `Try saying "${target}" slowly, syllable by syllable.`;
+  const tips = [];
+  if (t.includes('th') && !s.includes('th')) tips.push(`Focus on "th" sound — place tongue between teeth.`);
+  if (t.includes('wh') && s.startsWith('w')) tips.push(`"wh" words: some dialects drop the 'h', try "hw" sound.`);
+  if (t.includes('r') && !s.includes('r')) tips.push(`Practice the American 'r' by curling tongue back slightly.`);
+  if (t.endsWith('ed') && !s.endsWith('ed') && !s.endsWith('d') && !s.endsWith('t')) tips.push(`Don't forget the "-ed" ending.`);
+  if (t.endsWith('s') && !s.endsWith('s')) tips.push(`Make sure to pronounce the final "s".`);
+  if (tips.length) return tips[0];
+  const lev = levenshtein(t, s);
+  if (lev <= 1) return `Very close! Just a slight variation detected.`;
+  if (lev <= 3) return `Similar sounds, but check vowel placement: "${target}".`;
+  return `Practice breaking "${target}" into syllables and saying each one clearly.`;
+}
+
+function analyzeNow() {
+  const targetRaw = targetInput.value.trim();
+  const spokenRaw = transcript.trim();
+  if (!targetRaw || !spokenRaw) return;
+
+  const tWords = tokenize(targetRaw);
+  const sWords = tokenize(spokenRaw);
+
+  // DP alignment (LCS-based word match)
+  const results = alignWords(tWords, sWords);
+
+  renderResults(results, tWords, sWords, spokenRaw);
+}
+
+function alignWords(tWords, sWords) {
+  // Build similarity matrix and use greedy DP alignment
+  const n = tWords.length, m = sWords.length;
+  const dp = Array.from({length:n+1}, () => new Array(m+1).fill(0));
+  for (let i = 1; i <= n; i++)
+    for (let j = 1; j <= m; j++) {
+      const sim = similarity(tWords[i-1], sWords[j-1]);
+      dp[i][j] = Math.max(
+        dp[i-1][j],
+        dp[i][j-1],
+        dp[i-1][j-1] + (sim >= tolerance ? sim : 0)
+      );
+    }
+
+  // Traceback
+  const alignment = [];
+  let i = n, j = m;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0) {
+      const sim = similarity(tWords[i-1], sWords[j-1]);
+      if (sim >= tolerance && dp[i][j] === dp[i-1][j-1] + sim) {
+        alignment.unshift({ target: tWords[i-1], spoken: sWords[j-1], sim, type: 'correct' });
+        i--; j--;
+        continue;
+      }
+    }
+    if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) {
+      alignment.unshift({ target: null, spoken: sWords[j-1], sim: 0, type: 'extra' });
+      j--;
+    } else {
+      const spoken = j > 0 ? sWords[j-1] : null;
+      const sim2 = spoken ? similarity(tWords[i-1], spoken) : 0;
+      if (spoken && sim2 > 0.3 && sim2 < tolerance) {
+        alignment.unshift({ target: tWords[i-1], spoken, sim: sim2, type: 'wrong' });
+        i--; j--;
+      } else {
+        alignment.unshift({ target: tWords[i-1], spoken: null, sim: 0, type: 'skipped' });
+        i--;
+      }
+    }
+  }
+  return alignment;
+}
+
+function renderResults(alignment, tWords, sWords, spokenRaw) {
+  const correct = alignment.filter(a => a.type === 'correct').length;
+  const wrong   = alignment.filter(a => a.type === 'wrong').length;
+  const skipped = alignment.filter(a => a.type === 'skipped').length;
+  const extra   = alignment.filter(a => a.type === 'extra').length;
+  const total   = tWords.length;
+  const score   = Math.round((correct / total) * 100);
+
+  // Score color
+  const scoreColor = score >= 80 ? 'var(--green)' : score >= 50 ? 'var(--amber)' : 'var(--red)';
+
+  let html = `
+    <div class="score-grid">
+      <div class="score-card">
+        <div class="score-num" style="color:${scoreColor}">${score}<span style="font-size:16px;font-weight:400;">%</span></div>
+        <div class="score-lbl">Accuracy</div>
+      </div>
+      <div class="score-card">
+        <div class="score-num" style="color:var(--green)">${correct}</div>
+        <div class="score-lbl">Correct</div>
+      </div>
+      <div class="score-card">
+        <div class="score-num" style="color:var(--red)">${wrong + skipped}</div>
+        <div class="score-lbl">Mistakes</div>
+      </div>
+      <div class="score-card">
+        <div class="score-num" style="color:var(--muted)">${total}</div>
+        <div class="score-lbl">Total Words</div>
+      </div>
+    </div>
+
+    <div class="comparison-title">Word-by-Word Breakdown</div>
+    <div class="word-grid">
+  `;
+
+  alignment.forEach(a => {
+    if (a.type === 'extra') return; // show extras separately
+    const topWord = a.target || '—';
+    const botWord = a.spoken ? a.spoken : (a.type === 'skipped' ? '[skipped]' : '');
+    const simPct  = Math.round(a.sim * 100);
+    html += `
+      <div class="word-chip ${a.type}" title="${a.type}">
+        <span class="target-w">${topWord}</span>
+        <span class="spoken-w">${botWord}${a.type==='wrong' ? ` (${simPct}%)` : ''}</span>
+        <div class="status-dot"></div>
+      </div>
+    `;
+  });
+
+  if (extra > 0) {
+    alignment.filter(a => a.type === 'extra').forEach(a => {
+      html += `
+        <div class="word-chip extra" title="Extra word not in target">
+          <span class="target-w" style="color:var(--muted)">—</span>
+          <span class="spoken-w">+${a.spoken}</span>
+          <div class="status-dot"></div>
+        </div>
+      `;
+    });
+  }
+
+  html += `</div>`;
+
+  // Mistakes detail
+  const mistakes = alignment.filter(a => a.type === 'wrong' || a.type === 'skipped');
+  if (mistakes.length > 0) {
+    html += `<div class="comparison-title">Detailed Feedback</div><div class="mistake-list">`;
+    mistakes.forEach(a => {
+      const icon  = a.type === 'skipped' ? '⚠️' : '❌';
+      const spoken = a.spoken ? a.spoken : '[not detected]';
+      const tip   = phoneticTip(a.target, a.spoken || '');
+      html += `
+        <div class="mistake-item ${a.type === 'skipped' ? 'skipped' : ''}">
+          <div class="mistake-icon">${icon}</div>
+          <div class="mistake-info">
+            <div class="mistake-words">
+              <span class="m-target">${a.target}</span>
+              <span class="m-arrow">→</span>
+              <span class="m-spoken">${spoken}</span>
+            </div>
+            <div class="mistake-tip">${tip}</div>
+          </div>
+        </div>
+      `;
+    });
+    html += `</div>`;
+  } else if (score === 100) {
+    html += `
+      <div style="text-align:center;padding:24px;background:var(--bg);border-radius:12px;margin-bottom:24px;">
+        <div style="font-size:32px;margin-bottom:8px;">🎉</div>
+        <div style="font-weight:700;font-size:16px;letter-spacing:-0.02em;">Perfect pronunciation!</div>
+        <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:6px;">Every word matched the target phrase.</div>
+      </div>
+    `;
+  }
+
+  // Extra words note
+  if (extra > 0) {
+    html += `<div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:16px;">+ ${extra} extra word(s) spoken that weren't in the target phrase.</div>`;
+  }
+
+  html += `
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Correct</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> Mispronounced</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div> Skipped</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--red);opacity:0.5"></div> Extra</div>
+    </div>
+  `;
+
+  document.getElementById('results-body').innerHTML = html;
+  document.getElementById('results-outer').style.display = 'block';
+  document.getElementById('results-outer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function resetAll() {
+  transcript = '';
+  document.getElementById('transcript-box').textContent = 'Your spoken words will appear here…';
+  document.getElementById('transcript-box').classList.remove('has-text');
+  document.getElementById('analyze-btn').disabled = true;
+  document.getElementById('results-outer').style.display = 'none';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Start idle waveform animation
+waveInterval = setInterval(() => {
+  bars.forEach((b, i) => {
+    b.style.height = (4 + Math.sin(Date.now() / 500 + i * 0.6) * 2) + 'px';
+    b.classList.remove('active');
+  });
+}, 80);
+
+// Check browser support on load
+if (!SpeechRecognition) {
+  document.getElementById('record-section').innerHTML = `
+    <div class="no-support">
+      ⚠️ Your browser doesn't support the Web Speech API.<br/>
+      Please use <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong> for this feature.
+    </div>
+  `;
+}
+</script>
+</body>
+</html>
